@@ -346,7 +346,7 @@ app.listen(PORT, async () => {
     console.error("MongoDB connection failed:", error.message);
   }
 });
-const PORT = process.env.PORT || 5000;
+
 
 connectDB().then(() => {
   app.listen(PORT, () => {
