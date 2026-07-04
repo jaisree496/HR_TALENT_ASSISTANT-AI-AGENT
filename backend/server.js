@@ -346,3 +346,18 @@ app.listen(PORT, async () => {
     console.error("MongoDB connection failed:", error.message);
   }
 });
+
+/* ================= START SERVER ================= */
+
+connectDB()
+  .then(() => {
+    console.log("MongoDB connected");
+
+    app.listen(PORT, () => {
+      console.log(`Backend running on port ${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error("MongoDB connection failed:", error.message);
+    process.exit(1);
+  });
