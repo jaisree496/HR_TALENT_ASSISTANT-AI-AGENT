@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API_URL = "http://localhost:5000";
+const API_URL = "https://hr-talent-assistant-ai-agent-5wco.vercel.app";
 
 function App() {
   const [employees, setEmployees] = useState([]);
