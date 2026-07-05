@@ -6,10 +6,23 @@ const { connectDB, getDB } = require("./db");
 const { policyAgent } = require("./agents/policyAgent");
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+/* Connect MongoDB once when the serverless function starts */
+let dbConnectionPromise;
+
+function ensureDatabaseConnection() {
+  if (!dbConnectionPromise) {
+    dbConnectionPromise = connectDB().catch((error) => {
+      dbConnectionPromise = null;
+      throw error;
+    });
+  }
+
+  return dbConnectionPromise;
+}
 
 /* ================= BASIC ROUTES ================= */
 
@@ -17,17 +30,29 @@ app.get("/", (req, res) => {
   res.send("HR Talent Assistant backend is running");
 });
 
-app.get("/api/health", (req, res) => {
-  res.json({ message: "Backend is working" });
+app.get("/api/health", async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+
+    res.json({
+      message: "Backend is working",
+      database: "Connected"
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Backend is running but MongoDB connection failed",
+      error: error.message
+    });
+  }
 });
 
 /* ================= EMPLOYEES ================= */
 
 app.get("/api/employees", async (req, res) => {
   try {
-    const db = getDB();
+    await ensureDatabaseConnection();
 
-    const employees = await db
+    const employees = await getDB()
       .collection("employees")
       .find({})
       .sort({ createdAt: -1 })
@@ -41,15 +66,15 @@ app.get("/api/employees", async (req, res) => {
 
 app.post("/api/employees", async (req, res) => {
   try {
+    await ensureDatabaseConnection();
+
     const { name, email, role, department, joiningDate } = req.body;
 
     if (!name || !email || !role || !department || !joiningDate) {
       return res.status(400).json({
-        message: "All employee fields are required",
+        message: "All employee fields are required"
       });
     }
-
-    const db = getDB();
 
     const newEmployee = {
       name,
@@ -58,14 +83,16 @@ app.post("/api/employees", async (req, res) => {
       department,
       joiningDate,
       onboardingStatus: "Pending",
-      createdAt: new Date(),
+      createdAt: new Date()
     };
 
-    const result = await db.collection("employees").insertOne(newEmployee);
+    const result = await getDB()
+      .collection("employees")
+      .insertOne(newEmployee);
 
     res.status(201).json({
       message: "Employee added successfully",
-      employee: { ...newEmployee, _id: result.insertedId },
+      employee: { ...newEmployee, _id: result.insertedId }
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -76,9 +103,9 @@ app.post("/api/employees", async (req, res) => {
 
 app.get("/api/leaves", async (req, res) => {
   try {
-    const db = getDB();
+    await ensureDatabaseConnection();
 
-    const leaves = await db
+    const leaves = await getDB()
       .collection("leaves")
       .find({})
       .sort({ createdAt: -1 })
@@ -92,15 +119,15 @@ app.get("/api/leaves", async (req, res) => {
 
 app.post("/api/leaves", async (req, res) => {
   try {
+    await ensureDatabaseConnection();
+
     const { employeeName, leaveType, startDate, endDate, reason } = req.body;
 
     if (!employeeName || !leaveType || !startDate || !endDate || !reason) {
       return res.status(400).json({
-        message: "All leave fields are required",
+        message: "All leave fields are required"
       });
     }
-
-    const db = getDB();
 
     const newLeave = {
       employeeName,
@@ -109,14 +136,14 @@ app.post("/api/leaves", async (req, res) => {
       endDate,
       reason,
       status: "Pending",
-      createdAt: new Date(),
+      createdAt: new Date()
     };
 
-    const result = await db.collection("leaves").insertOne(newLeave);
+    const result = await getDB().collection("leaves").insertOne(newLeave);
 
     res.status(201).json({
       message: "Leave request submitted successfully",
-      leave: { ...newLeave, _id: result.insertedId },
+      leave: { ...newLeave, _id: result.insertedId }
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -125,18 +152,18 @@ app.post("/api/leaves", async (req, res) => {
 
 app.put("/api/leaves/:id", async (req, res) => {
   try {
+    await ensureDatabaseConnection();
+
     const { ObjectId } = require("mongodb");
     const { status } = req.body;
 
     if (!["Approved", "Rejected"].includes(status)) {
       return res.status(400).json({
-        message: "Status must be Approved or Rejected",
+        message: "Status must be Approved or Rejected"
       });
     }
 
-    const db = getDB();
-
-    await db.collection("leaves").updateOne(
+    await getDB().collection("leaves").updateOne(
       { _id: new ObjectId(req.params.id) },
       { $set: { status } }
     );
@@ -151,9 +178,9 @@ app.put("/api/leaves/:id", async (req, res) => {
 
 app.get("/api/feedback", async (req, res) => {
   try {
-    const db = getDB();
+    await ensureDatabaseConnection();
 
-    const feedback = await db
+    const feedback = await getDB()
       .collection("feedback")
       .find({})
       .sort({ createdAt: -1 })
@@ -167,15 +194,15 @@ app.get("/api/feedback", async (req, res) => {
 
 app.post("/api/feedback", async (req, res) => {
   try {
+    await ensureDatabaseConnection();
+
     const { employeeName, category, message, anonymous } = req.body;
 
     if (!category || !message) {
       return res.status(400).json({
-        message: "Feedback category and message are required",
+        message: "Feedback category and message are required"
       });
     }
-
-    const db = getDB();
 
     const newFeedback = {
       employeeName: anonymous ? "Anonymous" : employeeName || "Employee",
@@ -183,14 +210,16 @@ app.post("/api/feedback", async (req, res) => {
       message,
       anonymous: Boolean(anonymous),
       status: "New",
-      createdAt: new Date(),
+      createdAt: new Date()
     };
 
-    const result = await db.collection("feedback").insertOne(newFeedback);
+    const result = await getDB()
+      .collection("feedback")
+      .insertOne(newFeedback);
 
     res.status(201).json({
       message: "Feedback submitted successfully",
-      feedback: { ...newFeedback, _id: result.insertedId },
+      feedback: { ...newFeedback, _id: result.insertedId }
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -201,9 +230,9 @@ app.post("/api/feedback", async (req, res) => {
 
 app.get("/api/payroll", async (req, res) => {
   try {
-    const db = getDB();
+    await ensureDatabaseConnection();
 
-    const payrollIssues = await db
+    const payrollIssues = await getDB()
       .collection("payroll")
       .find({})
       .sort({ createdAt: -1 })
@@ -217,29 +246,29 @@ app.get("/api/payroll", async (req, res) => {
 
 app.post("/api/payroll", async (req, res) => {
   try {
+    await ensureDatabaseConnection();
+
     const { employeeName, issueType, description } = req.body;
 
     if (!employeeName || !issueType || !description) {
       return res.status(400).json({
-        message: "All payroll fields are required",
+        message: "All payroll fields are required"
       });
     }
-
-    const db = getDB();
 
     const newIssue = {
       employeeName,
       issueType,
       description,
       status: "Open",
-      createdAt: new Date(),
+      createdAt: new Date()
     };
 
-    const result = await db.collection("payroll").insertOne(newIssue);
+    const result = await getDB().collection("payroll").insertOne(newIssue);
 
     res.status(201).json({
       message: "Payroll issue submitted successfully",
-      payrollIssue: { ...newIssue, _id: result.insertedId },
+      payrollIssue: { ...newIssue, _id: result.insertedId }
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -248,12 +277,12 @@ app.post("/api/payroll", async (req, res) => {
 
 app.put("/api/payroll/:id", async (req, res) => {
   try {
+    await ensureDatabaseConnection();
+
     const { ObjectId } = require("mongodb");
     const { status } = req.body;
 
-    const db = getDB();
-
-    await db.collection("payroll").updateOne(
+    await getDB().collection("payroll").updateOne(
       { _id: new ObjectId(req.params.id) },
       { $set: { status } }
     );
@@ -264,41 +293,41 @@ app.put("/api/payroll/:id", async (req, res) => {
   }
 });
 
-/* ================= GROQ AI POLICY CHAT ================= */
+/* ================= AI POLICY CHAT ================= */
 
 app.post("/api/policy-chat", async (req, res) => {
   try {
+    await ensureDatabaseConnection();
+
     const { question } = req.body;
 
     if (!question || !question.trim()) {
       return res.status(400).json({
         answer: null,
-        error: "Question is required",
+        error: "Question is required"
       });
     }
 
-    const answer = await policyAgent(question);
-
-    const db = getDB();
+    const answer = await policyAgent(question.trim());
 
     const chatRecord = {
       question: question.trim(),
       answer,
-      createdAt: new Date(),
+      createdAt: new Date()
     };
 
-    await db.collection("chatHistory").insertOne(chatRecord);
+    await getDB().collection("chatHistory").insertOne(chatRecord);
 
     res.json({
       answer,
-      chat: chatRecord,
+      chat: chatRecord
     });
   } catch (error) {
-    console.error("Groq policy chat error:", error.message);
+    console.error("Policy chat error:", error.message);
 
     res.status(500).json({
       answer: null,
-      error: "Groq request failed. Check backend logs.",
+      error: error.message
     });
   }
 });
@@ -307,9 +336,9 @@ app.post("/api/policy-chat", async (req, res) => {
 
 app.get("/api/chat-history", async (req, res) => {
   try {
-    const db = getDB();
+    await ensureDatabaseConnection();
 
-    const history = await db
+    const history = await getDB()
       .collection("chatHistory")
       .find({})
       .sort({ createdAt: 1 })
@@ -318,38 +347,25 @@ app.get("/api/chat-history", async (req, res) => {
     res.json(history);
   } catch (error) {
     res.status(500).json({
-      error: "Could not load chat history.",
+      error: "Could not load chat history."
     });
   }
 });
 
 app.delete("/api/chat-history", async (req, res) => {
   try {
-    const db = getDB();
+    await ensureDatabaseConnection();
 
-    await db.collection("chatHistory").deleteMany({});
+    await getDB().collection("chatHistory").deleteMany({});
 
     res.json({
-      message: "Chat history cleared.",
+      message: "Chat history cleared."
     });
   } catch (error) {
     res.status(500).json({
-      error: "Could not clear chat history.",
+      error: "Could not clear chat history."
     });
   }
 });
 
-/* ================= START SERVER ================= */
-
-connectDB()
-  .then(() => {
-    console.log("MongoDB connected");
-
-    app.listen(PORT, () => {
-      console.log(`Backend running on port ${PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.error("MongoDB connection failed:", error.message);
-    process.exit(1);
-  });
+module.exports = app;
