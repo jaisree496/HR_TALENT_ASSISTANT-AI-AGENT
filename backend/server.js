@@ -11,6 +11,8 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+/* ================= BASIC ROUTES ================= */
+
 app.get("/", (req, res) => {
   res.send("HR Talent Assistant backend is running");
 });
@@ -43,7 +45,7 @@ app.post("/api/employees", async (req, res) => {
 
     if (!name || !email || !role || !department || !joiningDate) {
       return res.status(400).json({
-        message: "All employee fields are required"
+        message: "All employee fields are required",
       });
     }
 
@@ -56,14 +58,14 @@ app.post("/api/employees", async (req, res) => {
       department,
       joiningDate,
       onboardingStatus: "Pending",
-      createdAt: new Date()
+      createdAt: new Date(),
     };
 
     const result = await db.collection("employees").insertOne(newEmployee);
 
     res.status(201).json({
       message: "Employee added successfully",
-      employee: { ...newEmployee, _id: result.insertedId }
+      employee: { ...newEmployee, _id: result.insertedId },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -94,7 +96,7 @@ app.post("/api/leaves", async (req, res) => {
 
     if (!employeeName || !leaveType || !startDate || !endDate || !reason) {
       return res.status(400).json({
-        message: "All leave fields are required"
+        message: "All leave fields are required",
       });
     }
 
@@ -107,14 +109,14 @@ app.post("/api/leaves", async (req, res) => {
       endDate,
       reason,
       status: "Pending",
-      createdAt: new Date()
+      createdAt: new Date(),
     };
 
     const result = await db.collection("leaves").insertOne(newLeave);
 
     res.status(201).json({
       message: "Leave request submitted successfully",
-      leave: { ...newLeave, _id: result.insertedId }
+      leave: { ...newLeave, _id: result.insertedId },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -128,7 +130,7 @@ app.put("/api/leaves/:id", async (req, res) => {
 
     if (!["Approved", "Rejected"].includes(status)) {
       return res.status(400).json({
-        message: "Status must be Approved or Rejected"
+        message: "Status must be Approved or Rejected",
       });
     }
 
@@ -169,7 +171,7 @@ app.post("/api/feedback", async (req, res) => {
 
     if (!category || !message) {
       return res.status(400).json({
-        message: "Feedback category and message are required"
+        message: "Feedback category and message are required",
       });
     }
 
@@ -181,14 +183,14 @@ app.post("/api/feedback", async (req, res) => {
       message,
       anonymous: Boolean(anonymous),
       status: "New",
-      createdAt: new Date()
+      createdAt: new Date(),
     };
 
     const result = await db.collection("feedback").insertOne(newFeedback);
 
     res.status(201).json({
       message: "Feedback submitted successfully",
-      feedback: { ...newFeedback, _id: result.insertedId }
+      feedback: { ...newFeedback, _id: result.insertedId },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -219,7 +221,7 @@ app.post("/api/payroll", async (req, res) => {
 
     if (!employeeName || !issueType || !description) {
       return res.status(400).json({
-        message: "All payroll fields are required"
+        message: "All payroll fields are required",
       });
     }
 
@@ -230,14 +232,14 @@ app.post("/api/payroll", async (req, res) => {
       issueType,
       description,
       status: "Open",
-      createdAt: new Date()
+      createdAt: new Date(),
     };
 
     const result = await db.collection("payroll").insertOne(newIssue);
 
     res.status(201).json({
       message: "Payroll issue submitted successfully",
-      payrollIssue: { ...newIssue, _id: result.insertedId }
+      payrollIssue: { ...newIssue, _id: result.insertedId },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -263,6 +265,7 @@ app.put("/api/payroll/:id", async (req, res) => {
 });
 
 /* ================= GROQ AI POLICY CHAT ================= */
+
 app.post("/api/policy-chat", async (req, res) => {
   try {
     const { question } = req.body;
@@ -270,7 +273,7 @@ app.post("/api/policy-chat", async (req, res) => {
     if (!question || !question.trim()) {
       return res.status(400).json({
         answer: null,
-        error: "Question is required"
+        error: "Question is required",
       });
     }
 
@@ -281,26 +284,26 @@ app.post("/api/policy-chat", async (req, res) => {
     const chatRecord = {
       question: question.trim(),
       answer,
-      createdAt: new Date()
+      createdAt: new Date(),
     };
 
     await db.collection("chatHistory").insertOne(chatRecord);
 
     res.json({
       answer,
-      chat: chatRecord
+      chat: chatRecord,
     });
   } catch (error) {
     console.error("Groq policy chat error:", error.message);
 
     res.status(500).json({
       answer: null,
-      error: "Groq request failed. Check the backend terminal."
+      error: "Groq request failed. Check backend logs.",
     });
   }
 });
-/* ================= START SERVER ================= */
 
+/* ================= CHAT HISTORY ================= */
 
 app.get("/api/chat-history", async (req, res) => {
   try {
@@ -315,7 +318,7 @@ app.get("/api/chat-history", async (req, res) => {
     res.json(history);
   } catch (error) {
     res.status(500).json({
-      error: "Could not load chat history."
+      error: "Could not load chat history.",
     });
   }
 });
@@ -327,23 +330,12 @@ app.delete("/api/chat-history", async (req, res) => {
     await db.collection("chatHistory").deleteMany({});
 
     res.json({
-      message: "Chat history cleared."
+      message: "Chat history cleared.",
     });
   } catch (error) {
     res.status(500).json({
-      error: "Could not clear chat history."
+      error: "Could not clear chat history.",
     });
-  }
-});
-
-app.listen(PORT, async () => {
-  console.log(`Backend running at http://localhost:${PORT}`);
-
-  try {
-    await connectDB();
-    console.log("MongoDB connected");
-  } catch (error) {
-    console.error("MongoDB connection failed:", error.message);
   }
 });
 
